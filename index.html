@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        #webcam-container {
+            width: 200px;
+            height: 200px;
+            background-color: #000;
+            margin: 10px 0;
+        }
+        #webcam-container canvas {
+            display: none;
+        }
+        #webcam-container.active canvas {
+            display: block;
+        }
+        .button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .button.stop {
+            background-color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div>Teachable Machine Image Model</div>
+    <button id="toggleButton" class="button" onclick="toggleCamera()">Start</button>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        // More API functions here:
+        // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
+
+        // TODO: the link to your model provided by Teachable Machine export panel
+        const URL = "https://teachablemachine.withgoogle.com/models/MCXu8WmZ_/";
+
+        let model, webcam, labelContainer, maxPredictions;
+        let isRunning = false;
+        let animationFrameId = null;
+
+        // Load the image model and setup the webcam
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true;
+            webcam = new tmImage.Webcam(200, 200, flip);
+            await webcam.setup();
+            await webcam.play();
+            
+            // Clear any existing canvas before adding the new one
+            const container = document.getElementById("webcam-container");
+            container.innerHTML = '';
+            container.appendChild(webcam.canvas);
+            container.classList.add("active");
+            
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+            
+            isRunning = true;
+            animationFrameId = window.requestAnimationFrame(loop);
+        }
+
+        async function loop() {
+            if (!isRunning) return;
+            webcam.update(); // update the webcam frame
+            await predict();
+            animationFrameId = window.requestAnimationFrame(loop);
+        }
+
+        // run the webcam image through the image model
+        async function predict() {
+            // predict can take in an image, video or canvas html element
+            const prediction = await model.predict(webcam.canvas);
+            console.log(prediction)
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction =
+                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+            }
+        }
+
+        function stopCamera() {
+            isRunning = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            if (webcam) {
+                webcam.stop();
+            }
+            document.getElementById("webcam-container").classList.remove("active");
+            document.getElementById("toggleButton").textContent = "Start";
+            document.getElementById("toggleButton").classList.remove("stop");
+        }
+
+        async function toggleCamera() {
+            const button = document.getElementById("toggleButton");
+            if (!isRunning) {
+                await init();
+                button.textContent = "Stop";
+                button.classList.add("stop");
+            } else {
+                stopCamera();
+            }
+        }
+    </script>
+
+</body>
+</html>
